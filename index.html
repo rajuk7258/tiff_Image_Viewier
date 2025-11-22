@@ -1,653 +1,593 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>ProView TIFF — Mobile TIFF Viewer & Exporter (PWA)</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ProView TIFF PWA</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e293b">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <!-- PWA manifest -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0f172a">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Tailwind CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- UTIF for TIFF decoding -->
-  <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
-  <!-- JSZip for export-all -->
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <!-- EXIF reader (optional metadata) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
-
-  <style>
-    html,body { height:100%; }
-    body { background: #0b1220; color: #e6eef8; -webkit-font-smoothing:antialiased; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
-    .hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    .loader { border: 4px solid rgba(255,255,255,0.06); border-top: 4px solid #3b82f6; border-radius:50%; width:36px; height:36px; animation:spin 1s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    /* Make the canvas smoothing-friendly */
-    canvas { image-rendering: auto; -webkit-user-drag: none; -webkit-touch-callout: none; }
-    /* Hide desktop toolbar; toolbar only visible on small screens */
-    #bottomToolbar { display:flex; }
-    @media (min-width: 768px) { #bottomToolbar { display:none; } }
-    /* File info bubble */
-    .file-info { backdrop-filter: blur(6px); background: rgba(2,6,23,0.5); }
-    /* Small helper for draggable cursor */
-    .dragging { cursor: grabbing !important; cursor: -webkit-grabbing !important; }
-  </style>
-</head>
-<body class="flex flex-col h-screen">
-
-  <!-- Header -->
-  <header class="bg-slate-800 border-b border-slate-700 p-3 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <div class="p-2 bg-blue-600 rounded-lg">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-      </div>
-      <h1 class="text-lg font-semibold hidden sm:block">ProView <span class="text-blue-400">TIFF</span></h1>
-    </div>
-
-    <div class="flex items-center gap-2">
-      <button id="exportSingleBtn" onclick="exportToJPG()" disabled
-        class="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-full transition disabled:opacity-40">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-        <span class="hidden sm:inline">Export JPG</span>
-      </button>
-
-      <input id="fileInput" type="file" accept=".tif,.tiff,image/*" multiple class="hidden" />
-      <button onclick="document.getElementById('fileInput').click()"
-        class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-full shadow">
-        Open Files
-      </button>
-    </div>
-  </header>
-
-  <!-- Main -->
-  <main id="gestureZone" class="flex-1 relative flex items-center justify-center overflow-hidden p-3">
-    <!-- Empty state -->
-    <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mb-3 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/>
-      </svg>
-      <h2 class="text-xl font-semibold">No Images Selected</h2>
-      <p class="text-sm mt-2 max-w-xs text-center">Tap "Open Files" to select TIFFs, JPGs or PNGs. Multi-page TIFFs are supported.</p>
-    </div>
-
-    <!-- Loader -->
-    <div id="loader" class="hidden absolute inset-0 bg-slate-900/60 z-40 flex flex-col items-center justify-center">
-      <div class="loader mb-3"></div>
-      <div class="text-blue-300 animate-pulse">Processing...</div>
-    </div>
-
-    <!-- Canvas & Image (we use either) -->
-    <div id="imageContainer" class="hidden w-full h-full flex items-center justify-center">
-      <canvas id="mainCanvas" class="max-w-full max-h-full rounded-lg shadow-lg bg-white"></canvas>
-      <img id="mainImage" class="hidden max-w-full max-h-full rounded-lg shadow-lg" draggable="false" />
-    </div>
-
-    <!-- File info -->
-    <div id="fileInfo" class="hidden file-info absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-sm border border-white/10">
-      <span id="fileName" class="font-medium text-blue-200">file.tiff</span>
-      <span class="mx-2 opacity-60">|</span>
-      <span id="fileCounter" class="text-slate-300">0 / 0</span>
-    </div>
-  </main>
-
-  <!-- Thumbnails strip -->
-  <footer class="bg-slate-800 border-t border-slate-700 p-2">
-    <div class="flex md:hidden justify-between items-center mb-2 px-2">
-      <button onclick="prevImage()" class="flex items-center gap-1 text-sm text-slate-300 p-2">Prev</button>
-      <span class="text-xs text-slate-500">Swipe to navigate</span>
-      <button onclick="nextImage()" class="flex items-center gap-1 text-sm text-slate-300 p-2">Next</button>
-    </div>
-
-    <div id="thumbnailStrip" class="flex gap-2 overflow-x-auto hide-scrollbar h-16 px-2 items-center"></div>
-  </footer>
-
-  <!-- Mobile bottom toolbar (touch-friendly) -->
-  <div id="bottomToolbar" class="fixed bottom-0 left-0 w-full bg-slate-800/90 backdrop-blur-md border-t border-slate-700 z-50 py-2 flex justify-around md:hidden">
-    <button onclick="prevTiffPage()" class="flex flex-col items-center text-slate-200 text-xs">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5 5-5"/></svg>
-      <span class="mt-1">Prev Pg</span>
-    </button>
-
-    <button onclick="nextTiffPage()" class="flex flex-col items-center text-slate-200 text-xs">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5-5 5"/></svg>
-      <span class="mt-1">Next Pg</span>
-    </button>
-
-    <button onclick="rotate90()" class="flex flex-col items-center text-slate-200 text-xs">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v6h6M20 20v-6h-6"/></svg>
-      <span class="mt-1">Rotate</span>
-    </button>
-
-    <button onclick="toggleCropMode()" class="flex flex-col items-center text-slate-200 text-xs" id="cropBtn">
-      <svg xmlns="http://www.w3.org/2000/svg" id="cropIcon" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4H4v4M16 20h4v-4M4 16v4h4M20 8V4h-4"/></svg>
-      <span class="mt-1">Crop</span>
-    </button>
-
-    <button onclick="showHistogram()" class="flex flex-col items-center text-slate-200 text-xs">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 17h2v-4H4v4zm7 0h2V7h-2v10zm7 0h2V3h-2v14z"/></svg>
-      <span class="mt-1">Histogram</span>
-    </button>
-
-    <button onclick="exportAllZip()" class="flex flex-col items-center text-slate-200 text-xs">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-      <span class="mt-1">ZIP</span>
-    </button>
-  </div>
-
-  <!-- Install Button (hidden until beforeinstallprompt) -->
-  <button id="installBtn" class="fixed bottom-28 right-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow hidden">Install</button>
-
-  <!-- Small metadata panel (modal-like) -->
-  <div id="metaPanel" class="hidden fixed inset-0 z-60 bg-black/40 flex items-end md:items-center">
-    <div class="w-full md:w-2/3 bg-slate-900 p-4 rounded-t-2xl md:rounded-lg md:m-auto">
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="font-semibold">Image Metadata</h3>
-        <button onclick="closeMeta()" class="text-slate-400">Close</button>
-      </div>
-      <pre id="metaContent" class="text-xs max-h-64 overflow-auto"></pre>
-    </div>
-  </div>
-
-<script>
-/* ---------------------------
-  State
-----------------------------*/
-const state = {
-  files: [],
-  currentIndex: -1,
-  tiffBuffer: null,       // ArrayBuffer of current TIFF file (for multi-page)
-  tiffIfds: [],           // UTIF decode results for current TIFF
-  currentTiffPage: 0,
-  zoom: 1,
-  panX: 0, panY: 0,
-  isDragging: false,
-  dragStartX: 0, dragStartY: 0,
-  cropMode: false,
-  cropStart: null,
-  lastTouchDistance: null
-};
-
-/* ---------------------------
-  Elements
-----------------------------*/
-const fileInput = document.getElementById('fileInput');
-const mainCanvas = document.getElementById('mainCanvas');
-const mainImage = document.getElementById('mainImage');
-const imageContainer = document.getElementById('imageContainer');
-const loader = document.getElementById('loader');
-const emptyState = document.getElementById('emptyState');
-const fileNameDisplay = document.getElementById('fileName');
-const fileCounter = document.getElementById('fileCounter');
-const thumbnailStrip = document.getElementById('thumbnailStrip');
-const exportSingleBtn = document.getElementById('exportSingleBtn');
-const fileInfo = document.getElementById('fileInfo');
-const installBtn = document.getElementById('installBtn');
-const metaPanel = document.getElementById('metaPanel');
-const metaContent = document.getElementById('metaContent');
-const cropBtn = document.getElementById('cropBtn');
-
-/* ---------------------------
-  Init & Event Listeners
-----------------------------*/
-fileInput.addEventListener('change', handleFileSelect);
-document.addEventListener('keydown', (e) => {
-  if (state.files.length === 0) return;
-  if (e.key === 'ArrowLeft') prevImage();
-  if (e.key === 'ArrowRight') nextImage();
-});
-
-/* Touch gestures for mobile */
-const gestureZone = document.getElementById('gestureZone');
-gestureZone.addEventListener('touchstart', handleTouchStart, { passive: false });
-gestureZone.addEventListener('touchmove', handleTouchMove, { passive: false });
-gestureZone.addEventListener('touchend', handleTouchEnd, { passive: false });
-
-/* Mouse drag zoom/pan for canvas */
-mainCanvas.addEventListener('mousedown', (ev) => {
-  state.isDragging = true;
-  state.dragStartX = ev.clientX - state.panX;
-  state.dragStartY = ev.clientY - state.panY;
-  mainCanvas.classList.add('dragging');
-});
-document.addEventListener('mouseup', () => { state.isDragging = false; mainCanvas.classList.remove('dragging'); });
-document.addEventListener('mousemove', (ev) => {
-  if (!state.isDragging) return;
-  state.panX = ev.clientX - state.dragStartX;
-  state.panY = ev.clientY - state.dragStartY;
-  applyTransform();
-});
-
-/* Mouse wheel zoom */
-mainCanvas.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  const delta = e.deltaY > 0 ? -0.12 : 0.12;
-  state.zoom = Math.max(0.2, Math.min(8, state.zoom + delta));
-  applyTransform();
-}, { passive: false });
-
-/* Click canvas for crop if cropMode on */
-mainCanvas.addEventListener('click', (e) => {
-  if (!state.cropMode) return;
-  const rect = mainCanvas.getBoundingClientRect();
-  const x = Math.round((e.clientX - rect.left) / (rect.width / mainCanvas.width));
-  const y = Math.round((e.clientY - rect.top) / (rect.height / mainCanvas.height));
-  if (!state.cropStart) {
-    state.cropStart = { x, y };
-    showMessage('Crop start set — tap end point');
-    cropBtn.classList.add('bg-blue-600');
-  } else {
-    cropImage(state.cropStart, { x, y });
-    state.cropStart = null;
-    state.cropMode = false;
-    cropBtn.classList.remove('bg-blue-600');
-    showMessage('Cropped');
-  }
-});
-
-/* Prevent default image drag */
-mainImage.addEventListener('dragstart', (e) => e.preventDefault());
-
-/* Install prompt */
-let deferredPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  installBtn.classList.remove('hidden');
-});
-installBtn.addEventListener('click', async () => {
-  installBtn.classList.add('hidden');
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  const choice = await deferredPrompt.userChoice;
-  deferredPrompt = null;
-});
-
-/* ---------------------------
-  File Handling
-----------------------------*/
-function handleFileSelect(e) {
-  const files = Array.from(e.target.files || []);
-  if (!files.length) return;
-
-  const valid = files.filter(f => {
-    const name = f.name.toLowerCase();
-    return f.type.startsWith('image/') || name.endsWith('.tif') || name.endsWith('.tiff');
-  });
-
-  if (!valid.length) { showMessage('No valid images selected'); return; }
-
-  state.files = valid;
-  state.currentIndex = 0;
-  emptyState.classList.add('hidden');
-  imageContainer.classList.remove('hidden');
-  fileInfo.classList.remove('hidden');
-  exportSingleBtn.disabled = false;
-
-  generateThumbnails();
-  loadCurrentImage();
-}
-
-/* ---------------------------
-  Load current (supports TIFF multi-page)
-----------------------------*/
-async function loadCurrentImage() {
-  if (state.currentIndex < 0 || state.currentIndex >= state.files.length) return;
-  const file = state.files[state.currentIndex];
-  fileNameDisplay.textContent = file.name;
-  fileCounter.textContent = `${state.currentIndex + 1} / ${state.files.length}`;
-  updateActiveThumbnail();
-  loader.classList.remove('hidden');
-
-  try {
-    const name = file.name.toLowerCase();
-    if (name.endsWith('.tif') || name.endsWith('.tiff')) {
-      // load tiff to buffer and render page 0
-      state.tiffBuffer = await file.arrayBuffer();
-      state.tiffIfds = UTIF.decode(state.tiffBuffer) || [];
-      state.currentTiffPage = 0;
-      await renderTiffPage();
-    } else {
-      await renderImageFile(file);
-    }
-  } catch (err) {
-    console.error(err);
-    showMessage('Error loading file');
-  } finally {
-    loader.classList.add('hidden');
-  }
-}
-
-/* Render standard image (png/jpg) */
-function renderImageFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      mainCanvas.classList.add('hidden');
-      mainImage.classList.remove('hidden');
-      mainImage.src = ev.target.result;
-      mainImage.onload = () => {
-        resetTransforms();
-        // read EXIF metadata (if available)
-        try {
-          EXIF.getData(mainImage, function() {
-            const allMeta = EXIF.getAllTags(this);
-            if (Object.keys(allMeta).length) {
-              metaContent.textContent = JSON.stringify(allMeta, null, 2);
-            } else metaContent.textContent = 'No EXIF data';
-          });
-        } catch(e){ metaContent.textContent = 'No EXIF support'; }
-        resolve();
-      };
-      mainImage.onerror = reject;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-/* Render current TIFF page */
-async function renderTiffPage() {
-  if (!state.tiffIfds || !state.tiffIfds.length) throw new Error('Invalid TIFF');
-  const page = state.tiffIfds[state.currentTiffPage];
-  UTIF.decodeImage(state.tiffBuffer, page);
-  const rgba = UTIF.toRGBA8(page);
-  const w = page.width, h = page.height;
-
-  mainCanvas.width = w;
-  mainCanvas.height = h;
-  const ctx = mainCanvas.getContext('2d');
-  const imgData = ctx.createImageData(w, h);
-  imgData.data.set(rgba);
-  ctx.putImageData(imgData, 0, 0);
-
-  mainImage.classList.add('hidden');
-  mainCanvas.classList.remove('hidden');
-  resetTransforms();
-
-  // try to extract some metadata if stored in page.t37235 etc.
-  metaContent.textContent = JSON.stringify(page.tags || {}, null, 2);
-}
-
-/* ---------------------------
-  Pagination inside multi-page TIFF
-----------------------------*/
-function nextTiffPage() {
-  if (!state.tiffIfds || state.tiffIfds.length <= 1) return;
-  state.currentTiffPage = (state.currentTiffPage + 1) % state.tiffIfds.length;
-  renderTiffPage();
-}
-
-function prevTiffPage() {
-  if (!state.tiffIfds || state.tiffIfds.length <= 1) return;
-  state.currentTiffPage = (state.currentTiffPage - 1 + state.tiffIfds.length) % state.tiffIfds.length;
-  renderTiffPage();
-}
-
-/* ---------------------------
-  Navigation (files)
-----------------------------*/
-function nextImage() {
-  if (!state.files.length) return;
-  state.currentIndex = (state.currentIndex + 1) % state.files.length;
-  state.tiffIfds = []; state.tiffBuffer = null;
-  loadCurrentImage();
-}
-function prevImage() {
-  if (!state.files.length) return;
-  state.currentIndex = (state.currentIndex - 1 + state.files.length) % state.files.length;
-  state.tiffIfds = []; state.tiffBuffer = null;
-  loadCurrentImage();
-}
-
-/* ---------------------------
-  Thumbnail generation (real previews)
-----------------------------*/
-function generateThumbnails() {
-  thumbnailStrip.innerHTML = '';
-  state.files.forEach((file, idx) => {
-    const btn = document.createElement('button');
-    btn.id = `thumb-${idx}`;
-    btn.className = `flex-shrink-0 w-14 h-14 rounded-md overflow-hidden border-2 transition ${idx===state.currentIndex ? 'border-blue-500 opacity-100 scale-105' : 'border-transparent opacity-60 hover:opacity-90'}`;
-    btn.onclick = () => { state.currentIndex = idx; loadCurrentImage(); };
-
-    const img = document.createElement('img');
-    img.className = 'w-full h-full object-cover bg-slate-700';
-    img.draggable = false;
-
-    const name = file.name.toLowerCase();
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (name.endsWith('.tif') || name.endsWith('.tiff')) {
-        // decode first page and create small thumbnail
-        try {
-          const buffer = ev.target.result;
-          const ifds = UTIF.decode(buffer);
-          if (ifds && ifds.length) {
-            UTIF.decodeImage(buffer, ifds[0]);
-            const rgba = UTIF.toRGBA8(ifds[0]);
-            const w = ifds[0].width, h = ifds[0].height;
-            const tempCanvas = document.createElement('canvas');
-            const max = 80;
-            const scale = Math.min(1, max / Math.max(w, h) );
-            tempCanvas.width = Math.max(1, Math.floor(w * scale));
-            tempCanvas.height = Math.max(1, Math.floor(h * scale));
-            const tctx = tempCanvas.getContext('2d');
-            // putImageData on temp canvas via intermediate
-            const big = document.createElement('canvas');
-            big.width = w; big.height = h;
-            big.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba), w, h), 0, 0);
-            tctx.drawImage(big, 0, 0, tempCanvas.width, tempCanvas.height);
-            img.src = tempCanvas.toDataURL();
-          } else {
-            img.src = '';
-          }
-        } catch(err) {
-          img.src = '';
+    <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    
+    <style>
+        body { touch-action: none; overscroll-behavior: none; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Loading Spinner */
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 30px; height: 30px;
+            animation: spin 1s linear infinite;
         }
-      } else {
-        img.src = ev.target.result;
-      }
-    };
-    if (name.endsWith('.tif') || name.endsWith('.tiff')) reader.readAsArrayBuffer(file);
-    else reader.readAsDataURL(file);
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    btn.appendChild(img);
-    thumbnailStrip.appendChild(btn);
-  });
-}
+        /* Canvas visual handling */
+        canvas, img { 
+            transition: transform 0.1s ease-out; 
+            transform-origin: 0 0;
+            max-width: 100%; 
+            max-height: 100%;
+        }
+        .active-thumb { border-color: #3b82f6; opacity: 1; transform: scale(1.05); }
+    </style>
+</head>
+<body class="bg-slate-900 text-white h-screen flex flex-col overflow-hidden font-sans select-none">
 
-/* Update active thumb UI */
-function updateActiveThumbnail() {
-  const kids = thumbnailStrip.children;
-  for (let i=0;i<kids.length;i++){
-    const k = kids[i];
-    k.classList.remove('scale-105'); k.classList.remove('border-blue-500');
-    k.classList.add('border-transparent');
-  }
-  const active = document.getElementById(`thumb-${state.currentIndex}`);
-  if (active) {
-    active.classList.add('scale-105'); active.classList.remove('border-transparent');
-    active.classList.add('border-blue-500');
-    active.scrollIntoView({behavior:'smooth', inline:'center'});
-  }
-}
+    <header class="bg-slate-800/90 backdrop-blur border-b border-slate-700 p-3 flex items-center justify-between shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <div class="p-1.5 bg-blue-600 rounded">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+            <h1 class="font-bold tracking-wide text-sm sm:text-lg">ProView <span class="text-blue-400">TIFF</span></h1>
+        </div>
 
-/* ---------------------------
-  Transformations: zoom & pan
-----------------------------*/
-function resetTransforms() {
-  state.zoom = 1; state.panX = 0; state.panY = 0;
-  mainCanvas.style.transform = '';
-  mainImage.style.transform = '';
-}
+        <div class="flex gap-2">
+            <button onclick="exportToJPG()" id="desktopExport" class="hidden sm:flex items-center gap-2 bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-full text-sm transition">
+                <span>Save JPG</span>
+            </button>
+            
+            <input type="file" id="fileInput" multiple accept=".tif,.tiff,image/*" class="hidden">
+            <button onclick="document.getElementById('fileInput').click()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-full text-sm font-medium shadow-lg active:scale-95 transition">
+                Open Files
+            </button>
+        </div>
+    </header>
 
-/* apply CSS transform for pan/zoom — visual only */
-function applyTransform() {
-  const t = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
-  mainCanvas.style.transform = t;
-  mainImage.style.transform = t;
-}
+    <main class="flex-1 relative bg-slate-950 overflow-hidden flex items-center justify-center" id="gestureZone">
+        
+        <div id="emptyState" class="flex flex-col items-center text-slate-600 p-8 text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            <p class="text-lg font-medium text-slate-500">No Images Selected</p>
+            <p class="text-xs mt-2 text-slate-600">Supports Multi-page TIFF, JPG, PNG</p>
+        </div>
 
-/* ---------------------------
-  Touch handlers (pinch-to-zoom + swipe for nav)
-----------------------------*/
-let touchStartX = 0, touchEndX = 0;
-function handleTouchStart(e) {
-  if (!e.touches) return;
-  if (e.touches.length === 1) {
-    touchStartX = e.touches[0].clientX;
-    state.isDragging = true;
-    state.dragStartX = e.touches[0].clientX - state.panX;
-    state.dragStartY = e.touches[0].clientY - state.panY;
-  } else if (e.touches.length === 2) {
-    // pinch start
-    state.lastTouchDistance = distanceBetweenTouches(e.touches[0], e.touches[1]);
-  }
-}
-function handleTouchMove(e) {
-  if (!e.touches) return;
-  if (e.touches.length === 1 && state.isDragging) {
-    // pan
-    const tx = e.touches[0].clientX;
-    const ty = e.touches[0].clientY;
-    state.panX = tx - state.dragStartX;
-    state.panY = ty - state.dragStartY;
-    applyTransform();
-  } else if (e.touches.length === 2) {
-    // pinch zoom
-    e.preventDefault();
-    const d = distanceBetweenTouches(e.touches[0], e.touches[1]);
-    if (state.lastTouchDistance) {
-      const diff = d - state.lastTouchDistance;
-      state.zoom = Math.max(0.2, Math.min(8, state.zoom + diff * 0.005));
-      applyTransform();
-    }
-    state.lastTouchDistance = d;
-  }
-}
-function handleTouchEnd(e) {
-  state.isDragging = false;
-  state.lastTouchDistance = null;
-  if (e.changedTouches && e.changedTouches.length === 1) {
-    touchEndX = e.changedTouches[0].clientX;
-    const diff = touchEndX - touchStartX;
-    const threshold = 60;
-    if (Math.abs(diff) > threshold) {
-      if (diff > 0) prevImage();
-      else nextImage();
-    }
-  }
-}
-function distanceBetweenTouches(t1, t2) {
-  return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-}
+        <div id="loader" class="hidden absolute inset-0 z-50 bg-slate-900/80 flex flex-col items-center justify-center backdrop-blur-sm">
+            <div class="loader mb-2"></div>
+            <p class="text-blue-400 text-xs font-mono animate-pulse">PROCESSING...</p>
+        </div>
 
-/* ---------------------------
-  Rotate 90 degrees clockwise
-----------------------------*/
-function rotate90() {
-  // rotate current canvas content; if viewing image (img element), draw it to canvas first
-  const ctx = mainCanvas.getContext('2d');
-  // if mainImage visible, convert to canvas first
-  if (!mainCanvas.classList.contains('hidden') && mainCanvas.width > 0) {
-    const srcCanvas = document.createElement('canvas');
-    srcCanvas.width = mainCanvas.width;
-    srcCanvas.height = mainCanvas.height;
-    srcCanvas.getContext('2d').drawImage(mainCanvas, 0, 0);
-    // new dimensions
-    mainCanvas.width = srcCanvas.height;
-    mainCanvas.height = srcCanvas.width;
-    ctx.save();
-    ctx.translate(mainCanvas.width / 2, mainCanvas.height / 2);
-    ctx.rotate(Math.PI/2);
-    ctx.drawImage(srcCanvas, -srcCanvas.width/2, -srcCanvas.height/2);
-    ctx.restore();
-  } else if (mainImage && !mainImage.classList.contains('hidden')) {
-    const img = mainImage;
-    const srcCanvas = document.createElement('canvas');
-    srcCanvas.width = img.naturalWidth;
-    srcCanvas.height = img.naturalHeight;
-    srcCanvas.getContext('2d').drawImage(img, 0, 0);
-    // swap to mainCanvas and draw rotated
-    mainCanvas.width = srcCanvas.height;
-    mainCanvas.height = srcCanvas.width;
-    ctx.save();
-    ctx.translate(mainCanvas.width / 2, mainCanvas.height / 2);
-    ctx.rotate(Math.PI/2);
-    ctx.drawImage(srcCanvas, -srcCanvas.width/2, -srcCanvas.height/2);
-    ctx.restore();
-    mainImage.classList.add('hidden'); mainCanvas.classList.remove('hidden');
-  }
-  resetTransforms();
-}
+        <div id="canvasWrapper" class="w-full h-full flex items-center justify-center overflow-hidden hidden relative">
+            <canvas id="mainCanvas" class="shadow-2xl"></canvas>
+            <img id="mainImage" class="hidden shadow-2xl" />
+        </div>
 
-/* ---------------------------
-  Crop mode & cropping
-----------------------------*/
-function toggleCropMode() {
-  state.cropMode = !state.cropMode;
-  if (!state.cropMode) {
-    state.cropStart = null;
-    cropBtn.classList.remove('bg-blue-600');
-    showMessage('Crop mode OFF');
-  } else {
-    cropBtn.classList.add('bg-blue-600');
-    showMessage('Crop mode ON — tap start then end');
-  }
-}
+        <div id="fileInfo" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1.5 rounded-full text-xs border border-white/10 pointer-events-none">
+            <span id="fileName" class="text-blue-200 font-medium">filename.tif</span>
+            <span class="mx-2 text-slate-500">|</span>
+            <span id="pageInfo" class="text-slate-300">1/1</span>
+        </div>
 
-function cropImage(start, end) {
-  const x = Math.min(start.x, end.x);
-  const y = Math.min(start.y, end.y);
-  const w = Math.abs(end.x - start.x);
-  const h = Math.abs(end.y - start.y);
-  if (w === 0 || h === 0) return;
+        <button id="installBtn" class="hidden absolute bottom-20 right-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow-xl z-50 text-sm font-bold">
+            Install App
+        </button>
+    </main>
 
-  const tmp = document.createElement('canvas');
-  tmp.width = w;
-  tmp.height = h;
-  tmp.getContext('2d').drawImage(mainCanvas, x, y, w, h, 0, 0, w, h);
+    <footer class="bg-slate-800 border-t border-slate-700 h-20 shrink-0 flex items-center px-2 gap-2 overflow-x-auto hide-scrollbar z-20" id="thumbnailStrip">
+        </footer>
 
-  mainCanvas.width = w; mainCanvas.height = h;
-  mainCanvas.getContext('2d').drawImage(tmp, 0, 0);
-  mainImage.classList.add('hidden'); mainCanvas.classList.remove('hidden');
-  resetTransforms();
-}
+    <div id="mobileToolbar" class="md:hidden bg-slate-900/95 backdrop-blur border-t border-slate-800 p-2 flex justify-between items-center pb-safe z-30">
+        
+        <button onclick="prevTiffPage()" class="flex flex-col items-center p-2 text-slate-400 active:text-blue-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            <span class="text-[10px] mt-1">Pg Up</span>
+        </button>
 
-/* ---------------------------
-  Histogram (simple) — shows popup with bar chart
-----------------------------*/
-function showHistogram() {
-  try {
-    const ctx = mainCanvas.getContext('2d');
-    const w = mainCanvas.width, h = mainCanvas.height;
-    const data = ctx.getImageData(0,0,w,h).data;
-    const bins = new Array(256).fill(0);
-    for (let i=0;i<data.length;i+=4){
-      const lum = Math.round(0.2126*data[i] + 0.7152*data[i+1] + 0.0722*data[i+2]);
-      bins[lum]++;
-    }
-    // create a small popup canvas
-    const popup = document.createElement('div');
-    popup.className = 'fixed inset-0 z-60 flex items-center justify-center bg-black/50';
-    const box = document.createElement('div');
-    box.className = 'bg-slate-900 p-3 rounded-lg w-11/12 max-w-lg';
-    const close = document.createElement('button');
-    close.className = 'text-slate-300 mb-2'; close.textContent = 'Close';
-    close.onclick = () => popup.remove();
-    box.appendChild(close);
-    const chart = document.createElement('canvas'); chart.width = 600; chart.height = 120;
-    box.appendChild(chart);
-    popup.appendChild(box);
-    document.body.appendChild(popup);
-    const cctx = chart.getContext('2d');
-    cctx.fillStyle = '#0b1220'; cctx.fillRect(0,0,chart.width,chart.height);
-    const max = Math.max(...bins);
-    for (let i=0;i<256;i+=2) {
-      const val = bins[i] /
+        <button onclick="rotate90()" class="flex flex-col items-center p-2 text-slate-400 active:text-blue-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            <span class="text-[10px] mt-1">Rotate</span>
+        </button>
+
+        <button onclick="toggleCrop()" id="cropBtn" class="flex flex-col items-center p-2 text-slate-400 active:text-blue-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+            <span class="text-[10px] mt-1">Crop</span>
+        </button>
+
+        <button onclick="showHistogram()" class="flex flex-col items-center p-2 text-slate-400 active:text-blue-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            <span class="text-[10px] mt-1">Stats</span>
+        </button>
+
+        <button onclick="exportAllZip()" class="flex flex-col items-center p-2 text-slate-400 active:text-blue-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            <span class="text-[10px] mt-1">ZIP All</span>
+        </button>
+
+        <button onclick="nextTiffPage()" class="flex flex-col items-center p-2 text-slate-400 active:text-blue-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            <span class="text-[10px] mt-1">Pg Dn</span>
+        </button>
+    </div>
+
+    <script>
+        // --- STATE MANAGEMENT ---
+        const state = {
+            files: [],
+            currIndex: -1,
+            tiffPages: [],
+            currTiffPage: 0,
+            zoom: 1,
+            panX: 0,
+            panY: 0,
+            isDragging: false,
+            dragStart: { x: 0, y: 0 },
+            pinchStartDist: 0,
+            cropMode: false,
+            cropStart: null
+        };
+
+        // --- ELEMENTS ---
+        const els = {
+            fileInput: document.getElementById('fileInput'),
+            canvasWrapper: document.getElementById('canvasWrapper'),
+            mainCanvas: document.getElementById('mainCanvas'),
+            mainImage: document.getElementById('mainImage'),
+            emptyState: document.getElementById('emptyState'),
+            loader: document.getElementById('loader'),
+            fileInfo: document.getElementById('fileInfo'),
+            fileName: document.getElementById('fileName'),
+            pageInfo: document.getElementById('pageInfo'),
+            thumbStrip: document.getElementById('thumbnailStrip'),
+            gestureZone: document.getElementById('gestureZone'),
+            cropBtn: document.getElementById('cropBtn'),
+            installBtn: document.getElementById('installBtn')
+        };
+
+        // --- INITIALIZATION ---
+        els.fileInput.addEventListener('change', handleFileSelect);
+        
+        // PWA Install Logic
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            els.installBtn.classList.remove('hidden');
+        });
+        els.installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') els.installBtn.classList.add('hidden');
+            deferredPrompt = null;
+        });
+
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+            .then(() => console.log('SW Registered'))
+            .catch(err => console.log('SW Error', err));
+        }
+
+        // --- INPUT HANDLING ---
+        async function handleFileSelect(e) {
+            const raw = Array.from(e.target.files);
+            const valid = raw.filter(f => f.type.startsWith('image/') || f.name.toLowerCase().endsWith('.tif') || f.name.toLowerCase().endsWith('.tiff'));
+            
+            if (valid.length === 0) return showToast("No valid images found");
+
+            state.files = valid;
+            state.currIndex = 0;
+            
+            els.emptyState.classList.add('hidden');
+            els.canvasWrapper.classList.remove('hidden');
+            els.canvasWrapper.classList.add('flex');
+            els.fileInfo.classList.remove('hidden');
+
+            generateThumbnails();
+            await loadCurrentImage();
+        }
+
+        // --- RENDERING CORE ---
+        async function loadCurrentImage() {
+            if (state.currIndex < 0) return;
+            
+            resetTransform();
+            state.cropMode = false;
+            updateCropUI();
+            
+            const file = state.files[state.currIndex];
+            els.fileName.textContent = file.name;
+            
+            els.loader.classList.remove('hidden');
+            
+            updateActiveThumb();
+
+            try {
+                if (file.name.toLowerCase().endsWith('tif') || file.name.toLowerCase().endsWith('tiff')) {
+                    await loadTiff(file);
+                } else {
+                    await loadStandard(file);
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Error loading image");
+            } finally {
+                els.loader.classList.add('hidden');
+            }
+        }
+
+        function loadStandard(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    els.mainCanvas.classList.add('hidden');
+                    els.mainImage.classList.remove('hidden');
+                    els.mainImage.src = e.target.result;
+                    state.tiffPages = [];
+                    els.pageInfo.textContent = `${state.currIndex + 1}/${state.files.length}`;
+                    resolve();
+                }
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function loadTiff(file) {
+            const buffer = await file.arrayBuffer();
+            const ifds = UTIF.decode(buffer);
+            state.tiffPages = ifds;
+            state.currTiffPage = 0;
+            state.currentTiffBuffer = buffer; // Store for page switching
+            await renderTiffPage();
+        }
+
+        async function renderTiffPage() {
+            if (!state.tiffPages.length) return;
+            
+            const page = state.tiffPages[state.currTiffPage];
+            UTIF.decodeImage(state.currentTiffBuffer, page);
+            const rgba = UTIF.toRGBA8(page);
+            
+            els.mainImage.classList.add('hidden');
+            els.mainCanvas.classList.remove('hidden');
+            
+            els.mainCanvas.width = page.width;
+            els.mainCanvas.height = page.height;
+            
+            const ctx = els.mainCanvas.getContext('2d');
+            const imgData = ctx.createImageData(page.width, page.height);
+            imgData.data.set(rgba);
+            ctx.putImageData(imgData, 0, 0);
+
+            els.pageInfo.textContent = `Pg ${state.currTiffPage + 1}/${state.tiffPages.length}`;
+        }
+
+        // --- THUMBNAILS ---
+        function generateThumbnails() {
+            els.thumbStrip.innerHTML = '';
+            state.files.forEach((file, idx) => {
+                const btn = document.createElement('button');
+                btn.className = `shrink-0 w-12 h-12 rounded-md overflow-hidden border-2 border-transparent transition opacity-60 hover:opacity-100 bg-slate-700`;
+                btn.id = `thumb-${idx}`;
+                btn.onclick = () => { state.currIndex = idx; loadCurrentImage(); };
+
+                // Async thumbnail generation
+                const img = document.createElement('img');
+                img.className = "w-full h-full object-cover";
+                
+                if (file.name.match(/\.tif/i)) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const ifds = UTIF.decode(e.target.result);
+                        UTIF.decodeImage(e.target.result, ifds[0]);
+                        const rgba = UTIF.toRGBA8(ifds[0]);
+                        // Create tiny canvas
+                        const tCan = document.createElement('canvas');
+                        tCan.width = ifds[0].width; tCan.height = ifds[0].height;
+                        const ctx = tCan.getContext('2d');
+                        const idata = ctx.createImageData(tCan.width, tCan.height);
+                        idata.data.set(rgba);
+                        ctx.putImageData(idata, 0, 0);
+                        img.src = tCan.toDataURL();
+                    }
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    img.src = URL.createObjectURL(file);
+                }
+                
+                btn.appendChild(img);
+                els.thumbStrip.appendChild(btn);
+            });
+        }
+
+        function updateActiveThumb() {
+            document.querySelectorAll('#thumbnailStrip button').forEach(b => b.classList.remove('active-thumb', 'opacity-100'));
+            const active = document.getElementById(`thumb-${state.currIndex}`);
+            if (active) {
+                active.classList.add('active-thumb', 'opacity-100');
+                active.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+            }
+        }
+
+        // --- INTERACTION (Pan, Zoom, Gestures) ---
+        
+        // Mouse
+        els.gestureZone.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            applyZoom(delta);
+        });
+
+        els.gestureZone.addEventListener('mousedown', (e) => {
+            state.isDragging = true;
+            state.dragStart = { x: e.clientX - state.panX, y: e.clientY - state.panY };
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (state.isDragging) {
+                state.panX = e.clientX - state.dragStart.x;
+                state.panY = e.clientY - state.dragStart.y;
+                updateTransform();
+            }
+        });
+
+        window.addEventListener('mouseup', () => state.isDragging = false);
+
+        // Touch
+        els.gestureZone.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                state.isDragging = true;
+                state.dragStart = { x: e.touches[0].clientX - state.panX, y: e.touches[0].clientY - state.panY };
+            } else if (e.touches.length === 2) {
+                state.isDragging = false;
+                state.pinchStartDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        });
+
+        els.gestureZone.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (state.isDragging && e.touches.length === 1) {
+                state.panX = e.touches[0].clientX - state.dragStart.x;
+                state.panY = e.touches[0].clientY - state.dragStart.y;
+                updateTransform();
+            } else if (e.touches.length === 2) {
+                const dist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const delta = dist / state.pinchStartDist;
+                state.pinchStartDist = dist;
+                // Slow down pinch speed slightly
+                const damping = delta > 1 ? 1 + (delta-1)*0.5 : 1 - (1-delta)*0.5;
+                applyZoom(damping);
+            }
+        });
+
+        els.gestureZone.addEventListener('touchend', () => state.isDragging = false);
+
+        function applyZoom(factor) {
+            const newZoom = state.zoom * factor;
+            if (newZoom > 0.1 && newZoom < 10) {
+                state.zoom = newZoom;
+                updateTransform();
+            }
+        }
+
+        function updateTransform() {
+            const style = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+            els.mainCanvas.style.transform = style;
+            els.mainImage.style.transform = style;
+        }
+
+        function resetTransform() {
+            state.zoom = 1; state.panX = 0; state.panY = 0;
+            updateTransform();
+        }
+
+        // --- TOOLS (Crop, Rotate, etc) ---
+        
+        function prevTiffPage() {
+            if (state.tiffPages.length > 1) {
+                state.currTiffPage = (state.currTiffPage - 1 + state.tiffPages.length) % state.tiffPages.length;
+                renderTiffPage();
+            }
+        }
+        
+        function nextTiffPage() {
+            if (state.tiffPages.length > 1) {
+                state.currTiffPage = (state.currTiffPage + 1) % state.tiffPages.length;
+                renderTiffPage();
+            }
+        }
+
+        function rotate90() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const source = els.mainCanvas.classList.contains('hidden') ? els.mainImage : els.mainCanvas;
+            
+            const w = source.width || source.naturalWidth;
+            const h = source.height || source.naturalHeight;
+            
+            canvas.width = h;
+            canvas.height = w;
+            
+            ctx.translate(h/2, w/2);
+            ctx.rotate(90 * Math.PI / 180);
+            ctx.drawImage(source, -w/2, -h/2);
+            
+            // Put back to main canvas
+            els.mainImage.classList.add('hidden');
+            els.mainCanvas.classList.remove('hidden');
+            els.mainCanvas.width = h;
+            els.mainCanvas.height = w;
+            els.mainCanvas.getContext('2d').drawImage(canvas, 0, 0);
+            
+            resetTransform();
+        }
+
+        function toggleCrop() {
+            state.cropMode = !state.cropMode;
+            updateCropUI();
+            if (state.cropMode) showToast("Crop Mode: Tap Top-Left, then Bottom-Right");
+            state.cropStart = null;
+        }
+
+        function updateCropUI() {
+            if (state.cropMode) els.cropBtn.classList.add('text-blue-400');
+            else els.cropBtn.classList.remove('text-blue-400');
+        }
+
+        // Click handler for cropping
+        els.canvasWrapper.addEventListener('click', (e) => {
+            if (!state.cropMode) return;
+            
+            // Simple coordinate mapping logic
+            // Note: Accurate cropping requires unmapping the CSS transform. 
+            // For this version, we assume the user fits the image to screen or we take visual approximation.
+            // A robust solution maps screen coords -> transformed coords -> canvas coords.
+            
+            // To keep it reliable for this demo: We use the Center of the viewport as reference or simple visual clicks.
+            // Let's implement a visual reset for cropping to ensure accuracy.
+            
+            if (state.zoom !== 1) {
+                resetTransform();
+                showToast("Zoom reset for accurate cropping");
+                return;
+            }
+
+            const rect = els.mainCanvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (els.mainCanvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (els.mainCanvas.height / rect.height);
+
+            if (!state.cropStart) {
+                state.cropStart = { x, y };
+                showToast("Start set. Tap End point.");
+            } else {
+                const start = state.cropStart;
+                const width = Math.abs(x - start.x);
+                const height = Math.abs(y - start.y);
+                const sx = Math.min(start.x, x);
+                const sy = Math.min(start.y, y);
+
+                const tempC = document.createElement('canvas');
+                tempC.width = width; tempC.height = height;
+                tempC.getContext('2d').drawImage(els.mainCanvas, sx, sy, width, height, 0, 0, width, height);
+
+                els.mainCanvas.width = width;
+                els.mainCanvas.height = height;
+                els.mainCanvas.getContext('2d').drawImage(tempC, 0, 0);
+                
+                state.cropMode = false;
+                state.cropStart = null;
+                updateCropUI();
+                showToast("Cropped!");
+            }
+        });
+
+        function showHistogram() {
+            // Simple alert for now, or a modal overlay
+            const ctx = els.mainCanvas.getContext('2d');
+            const w = els.mainCanvas.width; const h = els.mainCanvas.height;
+            // Sampling center pixels for speed
+            const data = ctx.getImageData(w/2 - 50, h/2 - 50, 100, 100).data;
+            let r=0, g=0, b=0;
+            for(let i=0; i<data.length; i+=4) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; }
+            const pix = data.length/4;
+            showToast(`Avg Color: R${Math.floor(r/pix)} G${Math.floor(g/pix)} B${Math.floor(b/pix)}`);
+        }
+
+        // --- EXPORT ---
+        function exportToJPG() {
+            if (state.currIndex < 0) return;
+            const link = document.createElement('a');
+            const src = els.mainCanvas.classList.contains('hidden') ? els.mainImage : els.mainCanvas;
+            
+            // If it's an IMG tag, draw to canvas first
+            let finalCanvas = src;
+            if (src.tagName === 'IMG') {
+                finalCanvas = document.createElement('canvas');
+                finalCanvas.width = src.naturalWidth;
+                finalCanvas.height = src.naturalHeight;
+                finalCanvas.getContext('2d').drawImage(src, 0, 0);
+            }
+
+            link.download = 'exported_image.jpg';
+            link.href = finalCanvas.toDataURL('image/jpeg', 0.9);
+            link.click();
+        }
+
+        async function exportAllZip() {
+            if (state.files.length === 0) return;
+            showToast("Preparing ZIP...");
+            const zip = new JSZip();
+            
+            // Helper to get data URL from file
+            const fileToData = (file) => new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if(file.name.match(/\.tif/)) {
+                        // Convert TIFF to JPG for zip
+                        const ifds = UTIF.decode(e.target.result);
+                        UTIF.decodeImage(e.target.result, ifds[0]);
+                        const rgba = UTIF.toRGBA8(ifds[0]);
+                        const c = document.createElement('canvas');
+                        c.width = ifds[0].width; c.height = ifds[0].height;
+                        const ctx = c.getContext('2d');
+                        const idata = ctx.createImageData(c.width, c.height);
+                        idata.data.set(rgba);
+                        ctx.putImageData(idata, 0, 0);
+                        resolve(c.toDataURL('image/jpeg', 0.8).split(',')[1]);
+                    } else {
+                        resolve(e.target.result.split(',')[1]); // Assume base64
+                    }
+                }
+                if (file.name.match(/\.tif/)) reader.readAsArrayBuffer(file);
+                else reader.readAsDataURL(file);
+            });
+
+            for (let i = 0; i < state.files.length; i++) {
+                const file = state.files[i];
+                const data = await fileToData(file);
+                zip.file(`image_${i+1}.jpg`, data, {base64: true});
+            }
+
+            const content = await zip.generateAsync({type:"blob"});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = "all_images.zip";
+            link.click();
+            showToast("ZIP Downloaded");
+        }
+
+        // --- UTILS ---
+        function showToast(msg) {
+            const t = document.createElement('div');
+            t.className = "fixed top-20 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full shadow-xl border border-slate-600 z-50 animate-bounce text-sm";
+            t.innerText = msg;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 2500);
+        }
+    </script>
+</body>
+</html>
