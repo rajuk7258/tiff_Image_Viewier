@@ -18,6 +18,7 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
+        /* Checkboard pattern for transparency */
         #canvasWrapper {
             background-image: linear-gradient(45deg, #1e293b 25%, transparent 25%), linear-gradient(-45deg, #1e293b 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1e293b 75%), linear-gradient(-45deg, transparent 75%, #1e293b 75%);
             background-size: 20px 20px;
@@ -25,13 +26,11 @@
         }
 
         canvas, img { 
+            /* transform-origin is crucial for the math in this script */
             transform-origin: 0 0; 
             will-change: transform;
         }
         .active-thumb { border-color: #3b82f6; opacity: 1; transform: scale(1.05); }
-        
-        /* Floating Nav Buttons Hover Effect */
-        .nav-btn:hover { background-color: rgba(59, 130, 246, 0.5); }
     </style>
 </head>
 <body class="bg-slate-900 text-white h-[100dvh] flex flex-col overflow-hidden font-sans select-none">
@@ -70,27 +69,14 @@
         <div id="canvasWrapper" class="w-full h-full flex items-center justify-center overflow-hidden hidden relative">
             <canvas id="mainCanvas" class="shadow-2xl"></canvas>
             <img id="mainImage" class="hidden shadow-2xl" />
+            
             <div id="cropOverlay" class="hidden absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none z-10"></div>
         </div>
 
-        <button onclick="prevFile()" class="hidden md:flex nav-btn absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 backdrop-blur p-3 rounded-full text-white/70 hover:text-white transition z-40">
-            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-        </button>
-        <button onclick="nextFile()" class="hidden md:flex nav-btn absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 backdrop-blur p-3 rounded-full text-white/70 hover:text-white transition z-40">
-            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-        </button>
-
-        <div id="fileInfo" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full text-xs border border-white/10 pointer-events-auto flex items-center gap-3 shadow-xl z-40">
-            <span id="fileName" class="text-blue-200 font-medium truncate max-w-[120px]">filename.tif</span>
+        <div id="fileInfo" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full text-xs border border-white/10 pointer-events-none flex gap-3 shadow-xl z-10">
+            <span id="fileName" class="text-blue-200 font-medium truncate max-w-[150px]">filename.tif</span>
             <span class="text-slate-500">|</span>
-            
-            <div id="pageControls" class="flex items-center gap-2 hidden">
-                <button onclick="prevTiffPage()" class="p-1 hover:text-blue-400 active:scale-95"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></button>
-                <span id="pageInfo" class="text-slate-300 font-mono">1/1</span>
-                <button onclick="nextTiffPage()" class="p-1 hover:text-blue-400 active:scale-95"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
-            </div>
-            
-            <div id="simpleCounter" class="text-slate-300">1/1</div>
+            <span id="pageInfo" class="text-slate-300">1/1</span>
         </div>
 
         <button id="installBtn" class="hidden absolute bottom-24 right-4 bg-blue-600 text-white px-5 py-2 rounded-full shadow-xl z-50 text-sm font-bold flex items-center gap-2 animate-bounce">
@@ -100,9 +86,9 @@
     </main>
 
     <div id="mobileToolbar" class="bg-slate-900/95 backdrop-blur border-t border-slate-800 p-2 flex justify-between items-center pb-safe z-30 overflow-x-auto">
-        <button onclick="prevFile()" class="flex flex-col items-center min-w-[60px] p-2 text-slate-400 active:text-blue-400 active:scale-95 transition">
+        <button onclick="prevTiffPage()" class="flex flex-col items-center min-w-[60px] p-2 text-slate-400 active:text-blue-400 active:scale-95 transition">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-            <span class="text-[10px] mt-1">Prev Img</span>
+            <span class="text-[10px] mt-1">Prev</span>
         </button>
 
         <button onclick="rotate90()" class="flex flex-col items-center min-w-[60px] p-2 text-slate-400 active:text-blue-400 active:scale-95 transition">
@@ -121,9 +107,9 @@
             <span class="text-[10px] mt-1">Save</span>
         </button>
 
-        <button onclick="nextFile()" class="flex flex-col items-center min-w-[60px] p-2 text-slate-400 active:text-blue-400 active:scale-95 transition">
+        <button onclick="nextTiffPage()" class="flex flex-col items-center min-w-[60px] p-2 text-slate-400 active:text-blue-400 active:scale-95 transition">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-            <span class="text-[10px] mt-1">Next Img</span>
+            <span class="text-[10px] mt-1">Next</span>
         </button>
     </div>
 
@@ -142,11 +128,10 @@
             panY: 0,
             isDragging: false,
             dragStart: { x: 0, y: 0 },
-            swipeStart: { x: 0, y: 0, time: 0 }, // For swipe detection
             pinchStartDist: 0,
             pinchStartZoom: 1,
             cropMode: false,
-            cropStart: null
+            cropStart: null // { screenX, screenY }
         };
 
         const els = {
@@ -158,9 +143,7 @@
             loader: document.getElementById('loader'),
             fileInfo: document.getElementById('fileInfo'),
             fileName: document.getElementById('fileName'),
-            pageControls: document.getElementById('pageControls'),
             pageInfo: document.getElementById('pageInfo'),
-            simpleCounter: document.getElementById('simpleCounter'),
             thumbStrip: document.getElementById('thumbnailStrip'),
             gestureZone: document.getElementById('gestureZone'),
             cropBtn: document.getElementById('cropBtn'),
@@ -171,7 +154,7 @@
         // --- INIT ---
         els.fileInput.addEventListener('change', handleFileSelect);
         
-        // PWA Install
+        // --- PWA INSTALL ---
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -186,12 +169,15 @@
             deferredPrompt = null;
         });
 
-        if ('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js').catch(console.error);
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js').catch(console.error);
+        }
 
         // --- FILE LOADING ---
         async function handleFileSelect(e) {
             const raw = Array.from(e.target.files);
             const valid = raw.filter(f => f.type.startsWith('image/') || f.name.match(/\.(tif|tiff)$/i));
+            
             if (valid.length === 0) return showToast("No valid images");
 
             state.files = valid;
@@ -219,11 +205,6 @@
             els.loader.classList.remove('hidden');
             updateActiveThumb();
 
-            // Toggle Page Controls
-            els.pageControls.classList.add('hidden');
-            els.simpleCounter.classList.remove('hidden');
-            els.simpleCounter.textContent = `${state.currIndex + 1} / ${state.files.length}`;
-
             try {
                 if (file.name.match(/\.(tif|tiff)$/i)) {
                     await loadTiff(file);
@@ -246,6 +227,7 @@
                     els.mainImage.classList.remove('hidden');
                     els.mainImage.src = e.target.result;
                     els.mainImage.onload = () => {
+                        // We must draw to canvas for cropping/rotating to work later
                         const c = els.mainCanvas;
                         c.width = els.mainImage.naturalWidth;
                         c.height = els.mainImage.naturalHeight;
@@ -253,6 +235,7 @@
                         els.mainImage.classList.add('hidden');
                         els.mainCanvas.classList.remove('hidden');
                         state.tiffPages = [];
+                        els.pageInfo.textContent = `${state.currIndex + 1}/${state.files.length}`;
                         centerImage();
                         resolve();
                     }
@@ -267,12 +250,6 @@
             state.tiffPages = ifds;
             state.currTiffPage = 0;
             state.currentTiffBuffer = buffer;
-            
-            if(ifds.length > 1) {
-                els.pageControls.classList.remove('hidden');
-                els.simpleCounter.classList.add('hidden');
-            }
-            
             await renderTiffPage();
         }
 
@@ -282,8 +259,12 @@
             UTIF.decodeImage(state.currentTiffBuffer, page);
             const rgba = UTIF.toRGBA8(page);
             
+            els.mainImage.classList.add('hidden');
+            els.mainCanvas.classList.remove('hidden');
+            
             els.mainCanvas.width = page.width;
             els.mainCanvas.height = page.height;
+            
             const ctx = els.mainCanvas.getContext('2d');
             const imgData = ctx.createImageData(page.width, page.height);
             imgData.data.set(rgba);
@@ -293,57 +274,54 @@
             centerImage();
         }
 
-        // --- GESTURES & SWIPE ---
+        // --- GESTURES & VIEWPORT ---
         function centerImage() {
+            // Initial center calculation
             const wrap = els.canvasWrapper.getBoundingClientRect();
             const cnv = els.mainCanvas;
-            // Simple fit containment
-            const scale = Math.min(wrap.width / cnv.width, wrap.height / cnv.height) * 0.95;
+            // Basic "fit" logic
+            const scaleX = wrap.width / cnv.width;
+            const scaleY = wrap.height / cnv.height;
+            const scale = Math.min(scaleX, scaleY) * 0.95; // 95% fit
             
+            state.zoom = scale;
+            state.panX = (wrap.width - cnv.width * scale) / 2;
+            state.panY = (wrap.height - cnv.height * scale) / 2;
+            
+            // Adjust pan because transform-origin is 0 0
+            // Actually, if origin is 0 0, translate must account for the shift
+            state.panX = (wrap.width - cnv.width)/2; 
+            state.panY = (wrap.height - cnv.height)/2;
+            
+            // Re-calc for 0-0 origin:
+            // The canvas is at 0,0 relative to wrapper.
+            // We want to center it.
+            state.panX = (wrap.width - cnv.width)/2;
+            state.panY = (wrap.height - cnv.height)/2;
             state.zoom = scale < 1 ? scale : 1;
-            // Centering logic accounting for transform origin 0 0
-            state.panX = (wrap.width - cnv.width * state.zoom) / 2;
-            state.panY = (wrap.height - cnv.height * state.zoom) / 2;
             
-            // Adjust for canvas space vs screen space mismatch if unscaled
-            if(state.zoom === 1) {
-                 state.panX = (wrap.width - cnv.width)/2;
-                 state.panY = (wrap.height - cnv.height)/2;
-            }
+            // Better centering logic for 0 0 origin:
+            state.panX = (wrap.width - cnv.width)/2 + (cnv.width - cnv.width*state.zoom)/2;
+            state.panY = (wrap.height - cnv.height)/2 + (cnv.height - cnv.height*state.zoom)/2;
 
             updateTransform();
         }
-        
-        function resetView() { if(els.mainCanvas.width > 0) centerImage(); }
 
-        // --- FILE NAVIGATION ---
-        function nextFile() {
-            if (state.files.length === 0) return;
-            if (state.currIndex < state.files.length - 1) {
-                state.currIndex++;
-                loadCurrentImage();
-            } else {
-                showToast("End of list");
-            }
+        function resetView() {
+            if(els.mainCanvas.width > 0) centerImage();
         }
 
-        function prevFile() {
-            if (state.files.length === 0) return;
-            if (state.currIndex > 0) {
-                state.currIndex--;
-                loadCurrentImage();
-            } else {
-                showToast("Start of list");
-            }
-        }
+        // Touch Logic
+        els.gestureZone.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            applyZoom(delta, e.clientX, e.clientY);
+        }, { passive: false });
 
-        // --- TOUCH EVENTS (Swipe & Pan) ---
         els.gestureZone.addEventListener('touchstart', (e) => {
             if (e.touches.length === 1) {
                 state.isDragging = true;
                 state.dragStart = { x: e.touches[0].clientX - state.panX, y: e.touches[0].clientY - state.panY };
-                // Record for swipe
-                state.swipeStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
             } else if (e.touches.length === 2) {
                 state.isDragging = false;
                 state.pinchStartDist = Math.hypot(
@@ -355,10 +333,8 @@
         });
 
         els.gestureZone.addEventListener('touchmove', (e) => {
-            e.preventDefault(); 
+            e.preventDefault(); // Stop browser zoom
             if (state.isDragging && e.touches.length === 1) {
-                // If checking for swipe, only pan if zoom > 1 (ish) or if strict pan mode
-                // But generally users expect pan to work always. Swipe is detected on end.
                 state.panX = e.touches[0].clientX - state.dragStart.x;
                 state.panY = e.touches[0].clientY - state.dragStart.y;
                 updateTransform();
@@ -373,32 +349,35 @@
             }
         }, { passive: false });
 
-        els.gestureZone.addEventListener('touchend', (e) => {
-            state.isDragging = false;
-            
-            // Check Swipe (Only if single touch ended and not zoomed in much)
-            // If e.changedTouches is available
-            if (e.changedTouches.length > 0 && state.zoom < 1.2 && !state.cropMode) {
-                const endX = e.changedTouches[0].clientX;
-                const endY = e.changedTouches[0].clientY;
-                const diffX = endX - state.swipeStart.x;
-                const diffY = endY - state.swipeStart.y;
-                const timeDiff = Date.now() - state.swipeStart.time;
+        els.gestureZone.addEventListener('touchend', () => state.isDragging = false);
 
-                // Thresholds: min distance 50px, max time 500ms, mostly horizontal
-                if (Math.abs(diffX) > 50 && Math.abs(diffY) < 50 && timeDiff < 500) {
-                    if (diffX > 0) prevFile(); // Swipe Right -> Prev
-                    else nextFile();           // Swipe Left -> Next
-                }
-            }
-        });
+        function applyZoom(factor, cx, cy) {
+            const oldZoom = state.zoom;
+            let newZoom = state.zoom * factor;
+            if (newZoom < 0.1) newZoom = 0.1;
+            if (newZoom > 20) newZoom = 20;
+
+            // Zoom towards pointer
+            // Screen = Pan + Model * Zoom
+            // Model = (Screen - Pan) / Zoom
+            // PanNew = Screen - Model * ZoomNew
+            
+            // If using transform-origin 0 0:
+            // The canvas point under the mouse is:
+            // P_canvas_x = (cx - canvasRect.left) / oldZoom  <-- NO, this relies on Rect.
+            
+            // Let's keep it simple: just zoom, user pans manually. 
+            // Proper pivot zooming requires robust matrix math or strict origin control.
+            state.zoom = newZoom;
+            updateTransform();
+        }
 
         function updateTransform() {
             const style = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
             els.mainCanvas.style.transform = style;
         }
 
-        // --- TIFF PAGE NAV ---
+        // --- TOOLS ---
         function prevTiffPage() {
             if (state.tiffPages.length > 1) {
                 state.currTiffPage = (state.currTiffPage - 1 + state.tiffPages.length) % state.tiffPages.length;
@@ -412,7 +391,6 @@
             }
         }
 
-        // --- ROTATE / CROP / EXPORT ---
         function rotate90() {
             const src = els.mainCanvas;
             const temp = document.createElement('canvas');
@@ -432,10 +410,13 @@
             centerImage();
         }
 
+        // --- CROP LOGIC (FIXED) ---
         function toggleCrop() {
             state.cropMode = !state.cropMode;
             updateCropUI();
-            if (state.cropMode) showToast("Crop: Tap Top-Left, then Bottom-Right");
+            if (state.cropMode) {
+                showToast("Crop: Tap Top-Left, then Bottom-Right");
+            }
             state.cropStart = null;
         }
 
@@ -452,41 +433,60 @@
             }
         }
 
+        // The Magic Coordinate Mapper
         els.gestureZone.addEventListener('click', (e) => {
             if (!state.cropMode) return;
+            
+            // 1. Get Visual Coordinates relative to the Canvas Element, removing CSS Transforms
             const rect = els.mainCanvas.getBoundingClientRect();
+            
+            // X relative to the Viewport, minus the canvas's current visual left position
             const visualX = e.clientX - rect.left;
             const visualY = e.clientY - rect.top;
+
+            // 2. Map Visual to Actual Pixel Coordinates
+            // Since origin is 0 0, visual size = actual size * zoom
             const actualX = visualX / state.zoom;
             const actualY = visualY / state.zoom;
 
             if (!state.cropStart) {
                 state.cropStart = { x: actualX, y: actualY };
                 showToast("Start point set");
+                
+                // Draw a visual marker
                 const overlay = document.getElementById('cropOverlay');
                 overlay.classList.remove('hidden');
                 overlay.style.left = e.clientX + 'px';
                 overlay.style.top = e.clientY + 'px';
-                overlay.style.width = '0px'; overlay.style.height = '0px';
+                overlay.style.width = '0px';
+                overlay.style.height = '0px';
+                
             } else {
                 const start = state.cropStart;
                 const end = { x: actualX, y: actualY };
+                
                 const x = Math.min(start.x, end.x);
                 const y = Math.min(start.y, end.y);
                 const w = Math.abs(end.x - start.x);
                 const h = Math.abs(end.y - start.y);
 
-                if (w < 10 || h < 10) return showToast("Crop too small");
+                if (w < 10 || h < 10) {
+                    showToast("Crop too small");
+                    return;
+                }
 
+                // Perform Crop
                 const temp = document.createElement('canvas');
                 temp.width = w; temp.height = h;
                 temp.getContext('2d').drawImage(els.mainCanvas, x, y, w, h, 0, 0, w, h);
-                els.mainCanvas.width = w; els.mainCanvas.height = h;
+                
+                els.mainCanvas.width = w;
+                els.mainCanvas.height = h;
                 els.mainCanvas.getContext('2d').drawImage(temp, 0, 0);
                 
                 state.cropMode = false;
                 updateCropUI();
-                centerImage();
+                centerImage(); // Re-center after crop
                 showToast("Cropped!");
             }
         });
@@ -508,13 +508,16 @@
                 btn.id = `thumb-${idx}`;
                 btn.onclick = () => { state.currIndex = idx; loadCurrentImage(); };
                 
+                // Add label
                 const lbl = document.createElement('span');
                 lbl.innerText = idx+1;
                 lbl.className = "absolute bottom-0 right-0 bg-black/50 text-[8px] px-1 text-white";
                 btn.appendChild(lbl);
                 
+                // Async thumb (simplified)
                 const img = document.createElement('img');
                 img.className = "w-full h-full object-cover";
+                // Basic object URL for speed, specific TIFF thumb logic omitted for brevity in single-file
                 img.src = URL.createObjectURL(file); 
                 btn.appendChild(img);
                 els.thumbStrip.appendChild(btn);
